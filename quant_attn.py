@@ -62,17 +62,6 @@ def compile_lib(cuda_file):
 
 
 class QuantAttn:
-    """
-    Fused quantized attention using TurboQuant compressed KV cache.
-
-    Compressed key format per token:
-      k_hat:   d/2 bytes  (4-bit MSE indices, 2 per byte)
-      z_packed: d/8 bytes  (1-bit QJL signs, 8 per byte)
-      gamma:   4 bytes    (fp32 residual norm)
-    Total: d/2 + d/8 + 4 bytes vs d*2 bytes for fp16
-
-    At d=128: 84 bytes vs 256 bytes = 3.0x compression
-    """
 
     def __init__(self, d, b, device, attn_lib, fwht_lib):
         assert d in [64, 128, 256, 512], f"d must be 64/128/256/512, got {d}"
@@ -229,12 +218,12 @@ def benchmark(device, attn_lib, fwht_lib):
     configs = [
         # (d,   b, n_q, n_ctx)
         (128,  4,  1,   1024),    # single query, 1k context
-        (128,  4,  1,   4096),    # single query, 4k context
-        (128,  4,  1,   16384),   # single query, 16k context
+        (128,  4,  1,   4096),    # 4k context
+        (128,  4,  1,   16384),   # 16k context
         (128,  4,  8,   4096),    # small batch
         (128,  4,  32,  4096),    # larger batch
         (64,   4,  1,   4096),    # smaller head dim
-        (256,  4,  1,   4096),    # larger head dim
+        (256,  4,  1,   4096),    
     ]
 
     print(f"\n{'Config':<32} {'Naive(ms)':>10} {'Fused(ms)':>10} {'Speedup':>10} {'BW saved':>10}")
@@ -262,7 +251,7 @@ def benchmark(device, attn_lib, fwht_lib):
 
     print("="*64)
 
-    # memory layout summary
+    
     print("\n=== Compressed KV Cache Memory Layout ===")
     print(f"{'d':>6} {'fp16 (bytes)':>14} {'4+1bit (bytes)':>16} {'Compression':>12}")
     for d in [64, 128, 256, 512]:
