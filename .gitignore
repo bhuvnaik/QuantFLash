@@ -1,0 +1,10 @@
+*.so
+*.o
+__pycache__/
+*.pyc
+*.pyo
+triton_cache/
+results/
+.DS_Store
+*.log
+*.lock
