@@ -1,18 +1,3 @@
-"""
-Triton fused kernel for TurboQuant encoding pipeline.
-
-Fuses S2+S3+S5+S6 in one Triton kernel (no butterfly inside kernel):
-  S2: codebook lookup     idx = argmin_k |y_j - c_k|
-  S3: norm correction     ỹ_unit = centroids[idx] / ||centroids[idx]||
-  S5: residual in rotated space  r_rot = y - ỹ_unit
-  S6: norm + normalize    gamma_r = ||r_rot||, r_unit = r_rot / gamma_r
-
-S0 (norm extraction), S1 (SRHT forward), S4 (SRHT inverse) are done
-outside the kernel in PyTorch — they are fast elementwise + FWHT ops.
-
-One program per input vector. BLOCK_D threads per block = d.
-No tl.gather across warp boundaries — avoids Triton 3.3.1 compiler bug.
-"""
 
 import torch
 import torch.nn.functional as F
