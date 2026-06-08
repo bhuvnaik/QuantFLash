@@ -1,30 +1,3 @@
-"""
-QuantFlash-Sparse: Two-pass sparse attention over TurboQuant-compressed KV cache.
-
-Phase 1 baseline: TurboQuant + H2O
-  - All keys stored compressed (84 bytes)
-  - Accumulated attention scores used for heavy-hitter selection
-  - Bottom (1-top_k) fraction evicted each decode step
-  - Naive: selection uses corrupted scores from quantized keys (Q-Hitter problem)
-
-Phase 2: QuantFlash-Sparse
-  Pass 1: QuantFlash over ALL n_ctx compressed keys → approximate scores (cheap)
-  Select: top-k tokens by approximate score
-  Pass 2: dequantize ONLY top-k keys on-the-fly → exact fp16 scores
-  Merge:  exact scores for top-k, approximate for rest → softmax
-
-Key advantages over H2O:
-  - Selection uses CURRENT-STEP approximate scores, not historical accumulation
-  - QuantFlash scores have 0.972 cosine sim with exact → reliable selection
-  - Never materializes fp16 KV cache → memory always 3x lower
-  - Error-bounded: top-k miss probability bounded by TurboQuant distortion
-
-Comparison systems:
-  1. Exact fp16 attention (oracle)
-  2. TurboQuant + QuantFlash (no sparsity, our earlier work)
-  3. TurboQuant + H2O (naive sparse + quantization baseline)
-  4. QuantFlash-Sparse (our full contribution)
-"""
 
 import os, sys, ctypes, numpy as np, torch
 import torch.nn.functional as F
