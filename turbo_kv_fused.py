@@ -143,8 +143,6 @@ class TurboQuantKVFused(TurboQuantGPU):
         return (*k_out, *v_out)
 
 
-# ── correctness ───────────────────────────────────────────────────────────────
-
 def validate(tq, k, v, tol=1e-4):
     print(f"\n=== Correctness (n={k.shape[0]}, d={k.shape[1]}) ===")
 
@@ -172,8 +170,6 @@ def validate(tq, k, v, tol=1e-4):
     print(f"  PASS: {passed}")
     return passed
 
-
-# ── benchmark ─────────────────────────────────────────────────────────────────
 
 def timeit(fn, n_warmup=30, n_repeat=200):
     for _ in range(n_warmup): fn()
