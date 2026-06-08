@@ -55,7 +55,7 @@ class TurboQuantParallel(TurboQuantGPU):
         v_gamma  = torch.zeros(n_v, dtype=torch.float32, device=self.device)
         v_gammar = torch.zeros(n_v, dtype=torch.float32, device=self.device)
 
-        # ── stream K ──────────────────────────────────────────────────────────
+       
         with torch.cuda.stream(self.stream_k):
             norms_k  = torch.norm(k, dim=-1, keepdim=True)
             k_gamma.copy_(norms_k.squeeze(-1))
@@ -66,7 +66,7 @@ class TurboQuantParallel(TurboQuantGPU):
                 d=self.d, k=self.k, BLOCK_D=self.d,
             )
 
-        # ── stream V ──────────────────────────────────────────────────────────
+        
         with torch.cuda.stream(self.stream_v):
             norms_v  = torch.norm(v, dim=-1, keepdim=True)
             v_gamma.copy_(norms_v.squeeze(-1))
@@ -77,7 +77,7 @@ class TurboQuantParallel(TurboQuantGPU):
                 d=self.d, k=self.k, BLOCK_D=self.d,
             )
 
-        # ── sync both streams back to default ─────────────────────────────────
+    
         torch.cuda.current_stream().wait_stream(self.stream_k)
         torch.cuda.current_stream().wait_stream(self.stream_v)
 
@@ -91,7 +91,6 @@ class TurboQuantParallel(TurboQuantGPU):
         return (*k_out, *v_out)
 
 
-# ── correctness check ─────────────────────────────────────────────────────────
 
 def validate_parallel(tqp, k, v, tol=1e-4):
     print(f"\n=== Correctness check (n={k.shape[0]}, d={k.shape[1]}) ===")
@@ -125,7 +124,6 @@ def validate_parallel(tqp, k, v, tol=1e-4):
     return passed
 
 
-# ── benchmark ─────────────────────────────────────────────────────────────────
 
 def timeit(fn, n_warmup=30, n_repeat=200):
     for _ in range(n_warmup): fn()
