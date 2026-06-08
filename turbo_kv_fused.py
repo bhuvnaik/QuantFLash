@@ -1,13 +1,3 @@
-"""
-Fused K+V TurboQuant kernel.
-
-Instead of two separate encode() calls (2x launch overhead),
-one kernel processes K and V vectors interleaved:
-  thread block i encodes K[i] if i < n
-  thread block i+n encodes V[i-n] if i >= n
-
-One kernel launch, same arithmetic, half the overhead.
-"""
 
 import torch
 import numpy as np
