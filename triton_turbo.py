@@ -30,8 +30,6 @@ from turboquant.rotation import (
 )
 
 
-# ── codebook ──────────────────────────────────────────────────────────────────
-
 def solve_lloyd_max(d: int, b: int, n_iter: int = 2000) -> np.ndarray:
     k = 2**b; std = 1/np.sqrt(d)
     pdf = scipy_norm(0, std)
@@ -47,8 +45,6 @@ def solve_lloyd_max(d: int, b: int, n_iter: int = 2000) -> np.ndarray:
         c = nc
     return c.astype(np.float32)
 
-
-# ── Triton kernel: S2+S3+S5+S6 ───────────────────────────────────────────────
 
 @triton.jit
 def turbo_fused_kernel(
@@ -72,10 +68,9 @@ def turbo_fused_kernel(
     tid    = tl.arange(0, BLOCK_D)
     base   = vec_id * d
 
-    # ── S2: load rotated vector ───────────────────────────────────────────────
+
     y = tl.load(Y_ptr + base + tid)   # (d,) — each thread owns y[tid]
 
-    # ── S2: codebook lookup — argmin over k centroids, all in registers ───────
     # No gather needed — we iterate over centroids as scalars
     best_dist = tl.full((BLOCK_D,), float('inf'), dtype=tl.float32)
     best_idx  = tl.zeros((BLOCK_D,), dtype=tl.int16)
@@ -91,7 +86,7 @@ def turbo_fused_kernel(
 
     tl.store(IDX_ptr + base + tid, best_idx)
 
-    # ── S3: reconstruct centroid values ───────────────────────────────────────
+
     # y_tilde[tid] = centroids[best_idx[tid]]
     # Use tl.static_range to avoid gather — thread tid checks all k centroids
     y_tilde = tl.zeros((BLOCK_D,), dtype=tl.float32)
@@ -105,12 +100,9 @@ def turbo_fused_kernel(
     yt_norm    = tl.sqrt(yt_norm_sq)
     yt_inv     = tl.where(yt_norm > 1e-8, 1.0 / yt_norm, 0.0)
     y_tilde    = y_tilde * yt_inv
-
-    # ── S5: residual in rotated space ─────────────────────────────────────────
     # r_rot = y - y_tilde  (both unit-norm, so ||r_rot|| < 2)
     r_rot = y - y_tilde
 
-    # ── S6: residual norm and normalize ───────────────────────────────────────
     r_norm_sq = tl.sum(r_rot * r_rot, axis=0)
     gamma_r   = tl.sqrt(r_norm_sq)
     inv_gr    = tl.where(gamma_r > 1e-8, 1.0 / gamma_r, 0.0)
@@ -119,8 +111,6 @@ def turbo_fused_kernel(
     tl.store(GAMMA_R_ptr + vec_id, gamma_r)
     tl.store(RUNIT_ptr + base + tid, r_unit)
 
-
-# ── Python wrapper ────────────────────────────────────────────────────────────
 
 class TritonTurboQuant:
     """
@@ -239,8 +229,6 @@ class TritonTurboQuant:
                 gr)
 
 
-# ── correctness check ─────────────────────────────────────────────────────────
-
 def validate(tq, x, tol=1e-3):
     print(f"\n=== Correctness (n={x.shape[0]}, d={x.shape[1]}, b={tq.b}) ===")
     idx_f, ru_f, gam_f, gr_f = tq.encode(x)
@@ -261,7 +249,6 @@ def validate(tq, x, tol=1e-3):
     return passed
 
 
-# ── benchmark ─────────────────────────────────────────────────────────────────
 
 def timeit(fn, n_warmup=20, n_repeat=100):
     for _ in range(n_warmup): fn()
