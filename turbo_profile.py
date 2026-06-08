@@ -27,8 +27,6 @@ from scipy.stats import norm as scipy_norm
 from typing import Dict, List
 
 
-# ── helpers ────────────────────────────────────────────────────────────────
-
 def solve_lloyd_max(d: int, b: int, n_iter: int = 2000) -> np.ndarray:
     k = 2 ** b
     std = 1.0 / np.sqrt(d)
@@ -49,8 +47,6 @@ def solve_lloyd_max(d: int, b: int, n_iter: int = 2000) -> np.ndarray:
         centroids = new_c
     return centroids.astype(np.float32)
 
-
-# ── GPU timer ───────────────────────────────────────────────────────────────
 
 class GPUTimer:
     """
@@ -90,7 +86,6 @@ class GPUTimer:
         }
 
 
-# ── arithmetic intensity calculators ────────────────────────────────────────
 
 def ai_matmul(n: int, d: int) -> float:
     """
@@ -126,7 +121,6 @@ def ai_elementwise(n: int, d: int, ops_per_element: int = 1) -> float:
     return flops / bytes_
 
 
-# ── roofline model for RTX A5000 ────────────────────────────────────────────
 
 # RTX A5000 specs
 A5000_TFLOPS_FP32  = 27.8    # TFLOPS
@@ -158,7 +152,6 @@ def bytes_moved(n: int, d: int, stage: str, k: int = 0) -> float:
     return 0.0
 
 
-# ── per-stage profiling ──────────────────────────────────────────────────────
 
 def profile_all_stages(
     d: int,
@@ -173,7 +166,6 @@ def profile_all_stages(
     """
     k = 2 ** b
 
-    # ── setup ──
     torch.manual_seed(42)
     x  = F.normalize(torch.randn(n, d, device=device), dim=-1)
     Pi = torch.linalg.qr(torch.randn(d, d, device=device))[0]
@@ -182,7 +174,7 @@ def profile_all_stages(
 
     results = {"d": d, "b": b, "n": n, "stages": {}}
 
-    # ── S1: rotation  y = x @ Pi.T ──
+    # S1: rotation  y = x @ Pi.T 
     def s1(): return x @ Pi.T
     t = timer.measure(s1)
     flops = 2 * n * d * d
@@ -198,7 +190,7 @@ def profile_all_stages(
         "bandwidth_GBs": bytes_moved(n, d, "matmul") / (t["mean_ms"] * 1e-3) / 1e9,
     }
 
-    # ── S2: codebook lookup ──
+    # S2: codebook lookup
     y = x @ Pi.T
     def s2():
         dists = (y.unsqueeze(-1) - centroids).abs()
@@ -217,7 +209,7 @@ def profile_all_stages(
         "bandwidth_GBs": bytes_moved(n, d, "codebook", k) / (t["mean_ms"] * 1e-3) / 1e9,
     }
 
-    # ── S3: derotation  x_tilde = y_tilde @ Pi ──
+   
     idx     = (y.unsqueeze(-1) - centroids).abs().argmin(dim=-1)
     y_tilde = centroids[idx]
     def s3(): return y_tilde @ Pi
@@ -235,7 +227,7 @@ def profile_all_stages(
         "bandwidth_GBs": bytes_moved(n, d, "matmul") / (t["mean_ms"] * 1e-3) / 1e9,
     }
 
-    # ── S4: residual  r = x - x_tilde_mse ──
+    
     x_tilde_mse = y_tilde @ Pi
     def s4(): return x - x_tilde_mse
     t  = timer.measure(s4)
@@ -252,7 +244,7 @@ def profile_all_stages(
         "bandwidth_GBs": bytes_moved(n, d, "elementwise") / (t["mean_ms"] * 1e-3) / 1e9,
     }
 
-    # ── S5: normalize  r_unit = r / ||r|| ──
+   
     r = x - x_tilde_mse
     def s5(): return F.normalize(r, dim=-1)
     t  = timer.measure(s5)
@@ -268,7 +260,7 @@ def profile_all_stages(
         "bandwidth_GBs": bytes_moved(n, d, "elementwise") / (t["mean_ms"] * 1e-3) / 1e9,
     }
 
-    # ── S6: QJL quant  z = sign(r_unit @ S.T) ──
+   
     r_unit = F.normalize(r, dim=-1)
     def s6(): return torch.sign(r_unit @ S.T)
     t  = timer.measure(s6)
@@ -285,7 +277,6 @@ def profile_all_stages(
         "bandwidth_GBs": bytes_moved(n, d, "matmul") / (t["mean_ms"] * 1e-3) / 1e9,
     }
 
-    # ── S7: QJL dequant  scale * z @ S ──
     z     = torch.sign(r_unit @ S.T)
     scale = np.sqrt(np.pi / 2) / d
     def s7(): return scale * (z @ S)
@@ -303,7 +294,6 @@ def profile_all_stages(
         "bandwidth_GBs": bytes_moved(n, d, "matmul") / (t["mean_ms"] * 1e-3) / 1e9,
     }
 
-    # ── end-to-end timing ──
     def e2e_mse():
         y_   = x @ Pi.T
         idx_ = (y_.unsqueeze(-1) - centroids).abs().argmin(dim=-1)
@@ -340,7 +330,6 @@ def profile_all_stages(
     return results
 
 
-# ── report printer ──────────────────────────────────────────────────────────
 
 def print_report(all_results: List[Dict]) -> str:
     lines = []
@@ -393,7 +382,6 @@ def print_report(all_results: List[Dict]) -> str:
     return "\n".join(lines)
 
 
-# ── scaling sweep ────────────────────────────────────────────────────────────
 
 def scaling_sweep(device: torch.device, timer: GPUTimer) -> List[Dict]:
     """
@@ -425,7 +413,6 @@ def scaling_sweep(device: torch.device, timer: GPUTimer) -> List[Dict]:
     return results
 
 
-# ── main ─────────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
     device = torch.device("cuda")
