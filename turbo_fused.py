@@ -4,9 +4,6 @@ Python wrapper for the fused TurboQuant CUDA kernel.
 
 Compiles turbo_kernel.cu at import time via torch.utils.cpp_extension,
 then provides FusedTurboQuant class that replaces the PyTorch baseline.
-
-Usage:
-    python turbo_fused.py          # runs benchmark comparing fused vs baseline
 """
 
 import torch
@@ -19,7 +16,6 @@ import time
 from scipy.stats import norm as scipy_norm
 
 
-# ── compile the kernel ───────────────────────────────────────────────────────
 
 def compile_kernel(cuda_file: str = "turbo_kernel.cu") -> ctypes.CDLL:
     """
@@ -88,7 +84,6 @@ def compile_kernel(cuda_file: str = "turbo_kernel.cu") -> ctypes.CDLL:
     ]
     lib.launch_turbo_encode.restype = None
     return lib
-# ── codebook construction ────────────────────────────────────────────────────
 
 def solve_lloyd_max(d: int, b: int, n_iter: int = 2000) -> np.ndarray:
     k = 2 ** b
@@ -109,7 +104,6 @@ def solve_lloyd_max(d: int, b: int, n_iter: int = 2000) -> np.ndarray:
     return centroids.astype(np.float32)
 
 
-# ── next power of 2 ──────────────────────────────────────────────────────────
 
 def next_pow2(x: int) -> int:
     p = 1
@@ -118,7 +112,6 @@ def next_pow2(x: int) -> int:
     return p
 
 
-# ── fused TurboQuant ─────────────────────────────────────────────────────────
 
 class FusedTurboQuant:
     """
@@ -240,7 +233,6 @@ class FusedTurboQuant:
         return x_tilde_mse + x_tilde_qjl
 
 
-# ── benchmark ────────────────────────────────────────────────────────────────
 
 def benchmark(fn, n_warmup=20, n_repeat=100):
     for _ in range(n_warmup):
