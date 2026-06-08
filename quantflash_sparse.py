@@ -7,7 +7,7 @@ Phase 1 baseline: TurboQuant + H2O
   - Bottom (1-top_k) fraction evicted each decode step
   - Naive: selection uses corrupted scores from quantized keys (Q-Hitter problem)
 
-Phase 2: QuantFlash-Sparse (our contribution)
+Phase 2: QuantFlash-Sparse
   Pass 1: QuantFlash over ALL n_ctx compressed keys → approximate scores (cheap)
   Select: top-k tokens by approximate score
   Pass 2: dequantize ONLY top-k keys on-the-fly → exact fp16 scores
@@ -50,8 +50,6 @@ qf4.launch_qf_pack_z.argtypes     = [ctypes.c_void_p]*2+[ctypes.c_int]*2
 qf4.launch_qf_pack_z.restype      = None
 
 d = tq4.d; K = tq4.k
-
-# ── packing helpers ──────────────────────────────────────────────────────────
 
 def pack_khat(idx, n):
     out = torch.zeros(n, d//2, dtype=torch.int8, device=device)
@@ -109,8 +107,6 @@ def run_qf4(q_fwht, k_hat, z_packed, gamma, gamma_r, n_q, n_ctx):
     torch.cuda.synchronize(); return scores
 
 
-# ── System 1: Exact fp16 attention ───────────────────────────────────────────
-
 def exact_attention(q, keys, causal_mask=None):
     """
     q:    (n_q, d)   fp32
@@ -124,8 +120,6 @@ def exact_attention(q, keys, causal_mask=None):
     return F.softmax(scores, dim=-1), scores
 
 
-# ── System 2: QuantFlash (no sparsity) ───────────────────────────────────────
-
 def quantflash_attention(q, k_hat, z_packed, gamma, gamma_r, causal_mask=None):
     """Full QuantFlash over all keys."""
     n_q   = q.shape[0]
@@ -136,8 +130,6 @@ def quantflash_attention(q, k_hat, z_packed, gamma, gamma_r, causal_mask=None):
         scores[:, causal_mask] = float('-inf')
     return F.softmax(scores, dim=-1), scores
 
-
-# ── System 3: TurboQuant + H2O ───────────────────────────────────────────────
 
 class H2OCache:
     """
@@ -235,8 +227,6 @@ class H2OCache:
         return aw, scores
 
 
-# ── System 4: QuantFlash-Sparse ──────────────────────────────────────────────
-
 def quantflash_sparse_attention(
     q, k_hat, z_packed, gamma, gamma_r, idx, r_unit,
     top_k, causal_mask=None
@@ -253,24 +243,20 @@ def quantflash_sparse_attention(
     n_ctx = k_hat.shape[0]
     scale = float(1.0/np.sqrt(d))
 
-    # ── Pass 1: QuantFlash over all keys ─────────────────────────────────────
     q_fwht   = tq4.srht.forward(q.float())
     scores_p1 = run_qf4(q_fwht, k_hat, z_packed, gamma, gamma_r, n_q, n_ctx)
 
-    # ── Select top-k per query ────────────────────────────────────────────────
+    # Select top-k per query
     k_sel    = min(top_k, n_ctx)
     # use first query's scores for selection (in decode n_q=1 anyway)
     sel_scores = scores_p1[0] if causal_mask is None else \
                  scores_p1[0].masked_fill(causal_mask, float('-inf'))
     _, topk_idx = sel_scores.topk(k_sel, largest=True, sorted=False)  # (k_sel,)
-
-    # ── Pass 2: exact fp32 scores for top-k ──────────────────────────────────
     keys_topk   = dequantize_keys_full(
         idx[topk_idx], r_unit[topk_idx],
         gamma[topk_idx], gamma_r[topk_idx])          # (k_sel, d)
     scores_p2   = scale * (q.float() @ keys_topk.T)  # (n_q, k_sel)
 
-    # ── Merge: replace approximate scores with exact for top-k ───────────────
     scores_merged = scores_p1.clone()
     scores_merged[:, topk_idx] = scores_p2
 
@@ -280,8 +266,6 @@ def quantflash_sparse_attention(
     attn_weights = F.softmax(scores_merged, dim=-1)
     return attn_weights, scores_p1, scores_p2, topk_idx
 
-
-# ── Timing helper ─────────────────────────────────────────────────────────────
 
 def timeit(fn, n_warmup=20, n_repeat=100):
     for _ in range(n_warmup): fn()
@@ -294,9 +278,6 @@ def timeit(fn, n_warmup=20, n_repeat=100):
         torch.cuda.synchronize()
         times.append(s.elapsed_time(e))
     return float(np.mean(times)), float(np.std(times))
-
-
-# ── Quality metrics ───────────────────────────────────────────────────────────
 
 def attention_metrics(aw_ref, aw_test, label):
     cos  = F.cosine_similarity(
@@ -313,7 +294,6 @@ def attention_metrics(aw_ref, aw_test, label):
     return dict(label=label, cos=cos, l1=l1, top1=top1, top4=top4, kl=kl)
 
 
-# ── Main evaluation ───────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
     torch.manual_seed(42)
@@ -437,7 +417,6 @@ if __name__ == "__main__":
                   f"{m_qf['top4']*100:>6.1f}% {m_qf['kl']:>8.4f} "
                   f"{t_qf:>10.4f}ms {'N/A':>10}")
 
-    # ── summary table ─────────────────────────────────────────────────────────
     print("\n" + "="*90)
     print("SUMMARY: QF-Sparse vs H2O at sparsity=10% (top 10% of keys)")
     print("="*90)
@@ -458,7 +437,6 @@ if __name__ == "__main__":
                   f"{r['qfs_recall']*100:>9.1f}% "
                   f"{r['t_h2o']:>9.4f} {r['t_qfs']:>9.4f}")
 
-    # ── memory summary ────────────────────────────────────────────────────────
     print(f"\n{'='*60}")
     print("MEMORY FOOTPRINT COMPARISON")
     print(f"{'='*60}")
