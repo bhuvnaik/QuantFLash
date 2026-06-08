@@ -1,15 +1,4 @@
-"""
-TurboQuant Full GPU Pipeline
-Combines GPU SRHT (double sign FWHT) + Triton fused S2+S3+S5+S6
 
-Stages:
-  [GPU FWHT]   S0: norm extraction + normalize
-  [GPU FWHT]   S1: SRHT forward  D2 @ H @ D1 @ x_unit
-  [Triton]     S2+S3+S5+S6: codebook + norm_correction + residual + normalize
-  [GPU FWHT]   S4: SRHT inverse  D1 @ H @ D2 @ y_tilde  (for MSE reconstruction)
-
-Baseline comparison: CPU numpy SRHT + PyTorch S2
-"""
 
 import torch
 import torch.nn.functional as F
