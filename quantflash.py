@@ -12,7 +12,6 @@ device   = torch.device("cuda")
 fwht_lib = compile_fwht("fwht_kernel.cu")
 tq4      = TurboQuantGPU(d=128, b=4, device=device, fwht_lib=fwht_lib)
 
-# ── load QuantFlash kernel ────────────────────────────────────────────────────
 qf_lib = ctypes.CDLL(os.path.abspath("quantflash_kernel.so"))
 for fn, args in [
     ("launch_quantflash_v2", [
@@ -25,7 +24,6 @@ for fn, args in [
     getattr(qf_lib, fn).argtypes = args
     getattr(qf_lib, fn).restype  = None
 
-# ── load old quant_attn kernel for comparison ─────────────────────────────────
 old_lib = ctypes.CDLL(os.path.abspath("quant_attn_kernel.so"))
 old_lib.launch_quant_attn.argtypes = [
     ctypes.c_void_p]*7 + [ctypes.c_int]*3 + [ctypes.c_float]*2
@@ -34,7 +32,6 @@ old_lib.launch_quant_attn.restype  = None
 print(f"GPU: {torch.cuda.get_device_name(0)}")
 print(f"TurboQuant: d={tq4.d}, b={tq4.b}, k={tq4.k}")
 
-# ── packing helpers ───────────────────────────────────────────────────────────
 
 def pack_khat(idx, n, d):
     """idx: (n,d) int16 → packed (n, d/2) int8 with 4-bit nibbles."""
@@ -68,12 +65,10 @@ def encode_keys_old(keys):
     """Encode for old quant_attn kernel format (same packing, different lib)."""
     n = keys.shape[0]; d = tq4.d
     idx, r_unit, _, gamma_r = tq4.encode(keys)
-    # old kernel uses same int8 packing for k_hat
     k_hat_old = torch.zeros(n, d//2, dtype=torch.int8, device=device)
     old_lib.launch_pack_khat = None  # old kernel has launch_pack_khat
-    # use our packer since it's identical
     k_hat_old = pack_khat(idx, n, d)
-    # old kernel uses float z (not packed uint8) — unpack from r_unit directly
+
     z_old = torch.zeros(n, d//8, dtype=torch.uint8, device=device)
     qf_lib.launch_qf_pack_z(
         ctypes.c_void_p(r_unit.data_ptr()),
@@ -132,7 +127,6 @@ def timeit(fn, n_warmup=30, n_repeat=200):
         times.append(s.elapsed_time(e))
     return float(np.mean(times))
 
-# ── correctness ───────────────────────────────────────────────────────────────
 print("\n" + "="*68)
 print("CORRECTNESS")
 print("="*68)
@@ -159,7 +153,6 @@ for topk in [1, 4, 16]:
                  for i in range(n_q)) / (n_q * topk)
     print(f"  Top-{topk:2d} recall:    {recall*100:.1f}%")
 
-# ── memory layout ─────────────────────────────────────────────────────────────
 bytes_fp16 = d * 2
 bytes_qf   = d//2 + d//8 + 4
 lut_bytes  = d * tq4.k * 4
@@ -171,7 +164,7 @@ print(f"  Bandwidth reduction: {bytes_fp16/bytes_qf:.2f}x")
 print(f"  LUT: {lut_bytes} bytes = {lut_bytes/1024:.1f}KB "
       f"(built once per query, amortized over all keys)")
 
-# ── main speed benchmark ──────────────────────────────────────────────────────
+# speed benchmark 
 print("\n" + "="*72)
 print("SPEED BENCHMARK: QuantFlash vs fp16 cuBLAS vs old quant_attn")
 print("="*72)
@@ -209,7 +202,6 @@ for n_q, n_ctx in configs:
           f"{ms_fp16/ms_qf:>8.2f}x {ms_old/ms_qf:>7.2f}x "
           f"{bw_ratio:>9.2f}x")
 
-# ── bandwidth utilization ─────────────────────────────────────────────────────
 print("\n" + "="*68)
 print("BANDWIDTH UTILIZATION (n_q=1, decode regime)")
 print("="*68)
