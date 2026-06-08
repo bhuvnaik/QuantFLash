@@ -1,10 +1,5 @@
 /*
- * quantflash_kernel.cu  v2
- *
- * Key design change from v1:
- *   v1: block=(d/2,), threads reduce over coordinates, loop over keys  → BAD
- *   v2: block=(TILE_K,), each thread handles ONE key entirely           → GOOD
- *
+ * quantflash_kernel.cu  v2         
  * Each thread computes one complete attention score:
  *   score_i = Σ_j LUT[j][idx_j] + gamma_r_i * scale * dot_z_i
  *
@@ -30,7 +25,7 @@
 
 #define TILE_K 64
 
-/* ── FWHT butterfly over shared memory ──────────────────────────────────────
+/* FWHT butterfly over shared memory
  * Called by first d threads (tid < d) to transform s_q in place.
  * Uses s_tmp as scratch to avoid race conditions.
  */
@@ -79,7 +74,6 @@ __global__ void quantflash_kernel_v2(
     int key_end   = min(key_start + TILE_K, n_ctx);
     int base_q    = q_id * d;
 
-    /* ── Step 1: load query and apply D1 ─────────────────────────────────── */
     // threads 0..d-1 each load one coordinate
     // TILE_K=64, d=128 → need two passes if TILE_K < d
     if (tid < d) {
@@ -87,7 +81,6 @@ __global__ void quantflash_kernel_v2(
     }
     __syncthreads();
 
-    /* ── Step 2: FWHT butterfly ───────────────────────────────────────────── */
     // only first d=128 threads participate; TILE_K=64 so we need 2 passes
     // since TILE_K(64) < d(128), each thread handles 2 coordinates
     for (int stride = 1; stride < d; stride <<= 1) {
@@ -118,7 +111,6 @@ __global__ void quantflash_kernel_v2(
     }
     __syncthreads();
 
-    /* ── Step 3: build LUT[j][i] = s_q[j] * centroids[i] ────────────────── */
     // d*K = 128*16 = 2048 entries
     // TILE_K=64 threads → each handles 2048/64 = 32 entries
     int lut_total = d * K;
@@ -129,13 +121,11 @@ __global__ void quantflash_kernel_v2(
     }
     __syncthreads();
 
-    /* ── Step 4: each thread scores ONE key ──────────────────────────────── */
     int ki = key_start + tid;
     if (ki < key_end) {
         int d2 = d / 2;
         int d8 = d / 8;
 
-        // --- codebook term: 128 LUT lookups, no multiplications ----------
         float dot_lut = 0.0f;
         for (int j = 0; j < d2; j++) {
             int8_t packed = k_hat[ki * d2 + j];
@@ -145,7 +135,6 @@ __global__ void quantflash_kernel_v2(
             dot_lut += s_lut[(2*j+1) * K + idx1];
         }
 
-        // --- binary residual term: 128 sign lookups ----------------------
         float dot_z = 0.0f;
         for (int j = 0; j < d; j++) {
             uint8_t zb = z_packed[ki * d8 + j / 8];
@@ -153,7 +142,6 @@ __global__ void quantflash_kernel_v2(
             dot_z += s_q[j] * zj;
         }
 
-        // --- final score -------------------------------------------------
         scores[q_id * n_ctx + ki] =
             qk_scale * (dot_lut + gamma_r[ki] * scale * dot_z);
     }
