@@ -14,10 +14,6 @@ from scipy.stats import norm as scipy_norm
 from typing import Tuple
 
 
-# ---------------------------------------------------------------------------
-# Codebook construction — solves the 1D k-means problem in Eq. (4)
-# ---------------------------------------------------------------------------
-
 def solve_lloyd_max(d: int, b: int, n_iter: int = 2000) -> np.ndarray:
     """
     Solve the continuous 1D k-means problem (Eq. 4) via Lloyd-Max iteration.
@@ -61,9 +57,6 @@ def solve_lloyd_max(d: int, b: int, n_iter: int = 2000) -> np.ndarray:
     return centroids.astype(np.float32)
 
 
-# ---------------------------------------------------------------------------
-# Algorithm 1: TurboQuant_mse
-# ---------------------------------------------------------------------------
 
 class TurboQuantMSE:
     """
@@ -110,10 +103,6 @@ class TurboQuantMSE:
         return self.dequant(self.quant(x))
 
 
-# ---------------------------------------------------------------------------
-# QJL: 1-bit inner product quantizer (Definition 1)
-# ---------------------------------------------------------------------------
-
 class QJL:
     """
     Quantized Johnson-Lindenstrauss transform. Definition 1 from the paper.
@@ -141,9 +130,6 @@ class QJL:
         return (np.sqrt(np.pi / 2) / self.d) * (z @ self.S)
 
 
-# ---------------------------------------------------------------------------
-# Algorithm 2: TurboQuant_prod
-# ---------------------------------------------------------------------------
 
 class TurboQuantProd:
     """
@@ -204,10 +190,6 @@ class TurboQuantProd:
         return self.dequant(idx, z, gamma)
 
 
-# ---------------------------------------------------------------------------
-# Distortion metrics  (Eqs. 1 and 2)
-# ---------------------------------------------------------------------------
-
 def mse_distortion(x: torch.Tensor, x_tilde: torch.Tensor) -> float:
     """D_mse = E[||x - x_tilde||^2_2]"""
     return (x - x_tilde).pow(2).sum(dim=-1).mean().item()
@@ -228,10 +210,6 @@ def inner_product_distortion(
     return error.pow(2).mean().item(), (ip_est - ip_true).mean().item()
 
 
-# ---------------------------------------------------------------------------
-# Theoretical bounds
-# ---------------------------------------------------------------------------
-
 def mse_upper(b: int) -> float:
     return (np.sqrt(3 * np.pi) / 2) * (4 ** -b)
 
@@ -244,10 +222,6 @@ def prod_upper(b: int, d: int, y_norm_sq: float) -> float:
 def prod_lower(b: int, d: int) -> float:
     return (1 / d) * (4 ** -b)
 
-
-# ---------------------------------------------------------------------------
-# Correctness check
-# ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
     torch.manual_seed(42)
