@@ -27,7 +27,6 @@ from turbo_fwht import compile_fwht
 from triton_turbo import turbo_fused_kernel, solve_lloyd_max
 
 
-# ── Double-sign FWHT (SRHT matching turboquant_plus) ─────────────────────────
 
 class SRHT_GPU:
     """
@@ -102,7 +101,6 @@ class SRHT_GPU:
         return out
 
 
-# ── Full GPU TurboQuant pipeline ──────────────────────────────────────────────
 
 class TurboQuantGPU:
     """
@@ -185,7 +183,6 @@ class TurboQuantGPU:
         return idx, r_unit, gamma, gamma_r
 
 
-# ── correctness check ─────────────────────────────────────────────────────────
 
 def validate(tq: TurboQuantGPU, x: torch.Tensor, tol: float = 1e-2):
     print(f"\n=== Correctness (n={x.shape[0]}, d={x.shape[1]}, b={tq.b}) ===")
@@ -207,8 +204,6 @@ def validate(tq: TurboQuantGPU, x: torch.Tensor, tol: float = 1e-2):
     print(f"  PASS: {passed}")
     return passed
 
-
-# ── benchmark ─────────────────────────────────────────────────────────────────
 
 def timeit(fn, n_warmup=20, n_repeat=100):
     for _ in range(n_warmup): fn()
