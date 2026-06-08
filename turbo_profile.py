@@ -1,21 +1,4 @@
-"""
-TurboQuant Phase 1: Overhead Profiling
-Measures per-stage latency, memory bandwidth, and arithmetic intensity
-for TurboQuantMSE and TurboQuantProd on the RTX A5000.
 
-Stages profiled:
-  [MSE]  S1: rotation      Pi @ x
-  [MSE]  S2: codebook      nearest centroid lookup
-  [MSE]  S3: derotation    y_tilde @ Pi
-  [PROD] S4: residual      x - x_tilde_mse
-  [PROD] S5: normalize     r / ||r||
-  [PROD] S6: QJL quant     sign(S @ r_unit)
-  [PROD] S7: QJL dequant   scale * z @ S
-
-Outputs:
-  - results/profile_<timestamp>.json   raw numbers
-  - results/profile_<timestamp>.txt    human-readable report
-"""
 
 import torch
 import torch.nn.functional as F
