@@ -12,7 +12,6 @@ device   = torch.device("cuda")
 fwht_lib = compile_fwht("fwht_kernel.cu")
 tq4      = TurboQuantGPU(d=128, b=4, device=device, fwht_lib=fwht_lib)
 
-# ── recompile kernel v3 — receives pre-transformed q_fwht, no FWHT in kernel ─
 cu = r"""
 #include <cuda_runtime.h>
 #include <math.h>
@@ -163,7 +162,6 @@ void launch_qf_pack_z(const float* z, uint8_t* out, int n, int d) {
 }
 """
 
-# write and compile
 with open('/scratch/bhuvanc/turboquant/quantflash_v3.cu', 'w') as f:
     f.write(cu)
 
@@ -177,7 +175,6 @@ if result.returncode != 0:
     print("COMPILE ERROR:", result.stderr); sys.exit(1)
 print("Compiled quantflash_v3.so OK")
 
-# ── load ─────────────────────────────────────────────────────────────────────
 qf = ctypes.CDLL('/scratch/bhuvanc/turboquant/quantflash_v3.so')
 qf.launch_quantflash_v3.argtypes = [ctypes.c_void_p]*6 + \
     [ctypes.c_int]*4 + [ctypes.c_float]*2
@@ -259,7 +256,6 @@ def timeit(fn, n_warmup=30, n_repeat=200):
         times.append(s.elapsed_time(e))
     return float(np.mean(times))
 
-# ── correctness ───────────────────────────────────────────────────────────────
 print("\n" + "="*60)
 print("CORRECTNESS v3")
 print("="*60)
@@ -288,7 +284,6 @@ for topk in [1, 4, 16]:
                  for i in range(n_q_val)) / (n_q_val*topk)
     print(f"  Top-{topk:2d} recall: {recall*100:.1f}%")
 
-# ── benchmark ─────────────────────────────────────────────────────────────────
 bytes_fp16 = d*2; bytes_qf = d//2 + d//8 + 4
 print(f"\n  fp16={bytes_fp16}B/key  QF={bytes_qf}B/key  "
       f"bandwidth ratio={bytes_fp16/bytes_qf:.2f}x")
