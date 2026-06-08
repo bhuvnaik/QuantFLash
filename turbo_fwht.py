@@ -26,8 +26,6 @@ from scipy.stats import norm as scipy_norm
 from typing import Tuple
 
 
-# ── codebook ────────────────────────────────────────────────────────────────
-
 def solve_lloyd_max(d: int, b: int, n_iter: int = 2000) -> np.ndarray:
     k = 2 ** b
     std = 1.0 / np.sqrt(d)
@@ -53,8 +51,6 @@ def next_pow2(x: int) -> int:
         p <<= 1
     return p
 
-
-# ── compile ──────────────────────────────────────────────────────────────────
 
 def compile_fwht(cuda_file: str = "fwht_kernel.cu") -> ctypes.CDLL:
     so_file = cuda_file.replace(".cu", ".so")
@@ -99,8 +95,6 @@ def compile_fwht(cuda_file: str = "fwht_kernel.cu") -> ctypes.CDLL:
 
     return lib
 
-
-# ── FWHT wrapper ─────────────────────────────────────────────────────────────
 
 class FWHT:
     """
@@ -147,8 +141,6 @@ class FWHT:
         )
         return out
 
-
-# ── Level 2: FWHT + fused codebook ──────────────────────────────────────────
 
 class TurboQuantFWHT:
     """
@@ -272,7 +264,6 @@ class TurboQuantFWHT:
         return x_tilde_mse + gamma * (self.scale * (z @ S))
 
 
-# ── benchmark utilities ───────────────────────────────────────────────────────
 
 def timeit(fn, n_warmup=20, n_repeat=100):
     for _ in range(n_warmup):
@@ -288,7 +279,6 @@ def timeit(fn, n_warmup=20, n_repeat=100):
     return float(np.mean(times)), float(np.std(times))
 
 
-# ── correctness validation ────────────────────────────────────────────────────
 
 def validate_fwht(lib, device, d=512, n=1000):
     """
@@ -360,8 +350,6 @@ def validate_distortion(lib, device, d=512, b=4, n=2000):
     print(f"IP bias:      {ip_bias:+.6f}  (should be ~0)")
     print(f"MSE in bounds: {'PASS' if mse_lower <= mse <= mse_upper * 2 else 'FAIL'}")
 
-
-# ── main benchmark ────────────────────────────────────────────────────────────
 
 def run_benchmark(lib, device):
     print("\n" + "=" * 72)
